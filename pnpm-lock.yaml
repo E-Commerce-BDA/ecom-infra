@@ -15,7 +15,7 @@ importers:
 packages:
 
   '@ecom/contracts@file:../ecom-contracts/ecom-contracts-1.8.0.tgz':
-    resolution: {integrity: sha512-5uRZ1wrXGr639m9C+6wK8370HRyVSblNmPQsBg7lXi/tHlzCHeMPaLC/lfIltLB5dzjbYd9NdJR9+SukA0R67A==, tarball: file:../ecom-contracts/ecom-contracts-1.8.0.tgz}
+    resolution: {integrity: sha512-cBWQ45Npl1bsTmHts2rI1nWyAwu24mnj8rcAVNUWZHvSm71kBXUFdyD6pUFRI2/mbeATydtz9zeh+4USEFegfg==, tarball: file:../ecom-contracts/ecom-contracts-1.8.0.tgz}
     version: 1.8.0
     engines: {node: '>=22'}
     peerDependencies:
