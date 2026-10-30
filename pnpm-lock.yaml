@@ -9,14 +9,14 @@ importers:
   .:
     dependencies:
       '@ecom/contracts':
-        specifier: file:../ecom-contracts/ecom-contracts-1.7.0.tgz
-        version: file:../ecom-contracts/ecom-contracts-1.7.0.tgz(zod@4.6.7)
+        specifier: file:../ecom-contracts/ecom-contracts-1.8.0.tgz
+        version: file:../ecom-contracts/ecom-contracts-1.8.0.tgz(zod@4.6.7)
 
 packages:
 
-  '@ecom/contracts@file:../ecom-contracts/ecom-contracts-1.7.0.tgz':
-    resolution: {integrity: sha512-eJ2y/DhVPM2FC6tZVWaumzklCompm30oeVjDoffP4d3sIZYKSWzfKD1/wcK3PJ5xHiBJELuXoCWPZ3qMWWRrlg==, tarball: file:../ecom-contracts/ecom-contracts-1.7.0.tgz}
-    version: 1.7.0
+  '@ecom/contracts@file:../ecom-contracts/ecom-contracts-1.8.0.tgz':
+    resolution: {integrity: sha512-5uRZ1wrXGr639m9C+6wK8370HRyVSblNmPQsBg7lXi/tHlzCHeMPaLC/lfIltLB5dzjbYd9NdJR9+SukA0R67A==, tarball: file:../ecom-contracts/ecom-contracts-1.8.0.tgz}
+    version: 1.8.0
     engines: {node: '>=22'}
     peerDependencies:
       zod: '>=4 <5'
@@ -26,7 +26,7 @@ packages:
 
 snapshots:
 
-  '@ecom/contracts@file:../ecom-contracts/ecom-contracts-1.7.0.tgz(zod@4.6.7)':
+  '@ecom/contracts@file:../ecom-contracts/ecom-contracts-1.8.0.tgz(zod@4.6.7)':
     dependencies:
       zod: 4.6.7
 
