@@ -1,0 +1,187 @@
+# E-commerce local harness.
+#
+# One compose project, one dependency per container. `name` pins the Docker
+# Desktop group row ("e-commerce") and the volume prefix, so the stack is the
+# same no matter which directory you run the command from:
+#
+#   docker compose -f E:\E-Commerce\ecom-infra\docker-compose.yml up -d
+#
+# Nothing here is nested: every service below is its own container with its own
+# image, volume, restart policy and healthcheck. The project is what groups
+# them, and the grouping is a label, so `container_name` stays stable and every
+# documented `docker exec ecom-pg psql ...` command keeps working.
+#
+# Host ports are deliberately identical to the values the six services already
+# have in their .env files (5433 / 6379 / 27018 / 9092), so moving to this file
+# changes no application configuration.
+name: e-commerce
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: ecom-pg
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-ecom}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ecom-dev-only}
+      POSTGRES_DB: ${POSTGRES_DB:-ecom}
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ecom} -d ${POSTGRES_DB:-ecom}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    networks:
+      - ecom-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: ecom-redis
+    restart: unless-stopped
+    # AOF on: catalog caching and cart/order idempotency keys survive a restart.
+    command: ["redis-server", "--appendonly", "yes", "--save", "900", "1"]
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks:
+      - ecom-net
+
+  mongo:
+    image: mongo:8.0
+    container_name: ecom-mongo
+    restart: unless-stopped
+    # A single-node replica set is the only local shape that can run a
+    # transaction, which is what cms-005 needs for cms_outbox.
+    command: ["--replSet", "rs0", "--bind_ip_all"]
+    ports:
+      - "${MONGO_PORT:-27018}:27017"
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      # isWritablePrimary is only true after rs.initiate, so a healthy container
+      # is a container that can accept a transaction, not merely a live mongod.
+      test: ["CMD-SHELL", "mongosh --quiet --eval 'if (db.adminCommand({hello:1}).isWritablePrimary !== true) { quit(1) }'"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+    networks:
+      - ecom-net
+
+  mongo-rs-init:
+    image: mongo:8.0
+    container_name: ecom-mongo-rs-init
+    restart: "no"
+    depends_on:
+      mongo:
+        condition: service_started
+    entrypoint: ["/bin/bash", "/scripts/init-replica-set.sh"]
+    volumes:
+      - ./mongo:/scripts:ro
+    networks:
+      - ecom-net
+
+  kafka:
+    image: apache/kafka:3.7.0
+    container_name: ecom-kafka
+    restart: unless-stopped
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: 'broker,controller'
+      KAFKA_LISTENERS: 'PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093'
+      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://localhost:9092'
+      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT'
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@localhost:9093'
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      # Auto-create stays off: a topic that appears by accident has the wrong
+      # partition count and no .dlq twin. scripts/provision-topics.mjs owns them.
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'false'
+      KAFKA_NUM_PARTITIONS: 1
+      CLUSTER_ID: '4L622nShTUiTWhAQd1irEg'
+    ports:
+      - "${KAFKA_PORT:-9092}:9092"
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 20
+      start_period: 20s
+    networks:
+      - ecom-net
+
+  localstack:
+    image: localstack/localstack:3.8
+    container_name: ecom-localstack
+    restart: unless-stopped
+    environment:
+      # iam is here so `terraform apply` can be exercised against LocalStack:
+      # the SQS queues and the per-service policies both have to be creatable.
+      SERVICES: sqs,iam
+      DEBUG: "0"
+      AWS_DEFAULT_REGION: ${AWS_REGION:-us-east-1}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-test}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-test}
+      SQS_MAX_RECEIVE_COUNT: ${SQS_MAX_RECEIVE_COUNT:-5}
+    ports:
+      - "${LOCALSTACK_PORT:-4566}:4566"
+    volumes:
+      - localstack-data:/var/lib/localstack
+      # Init hooks run once the SQS API is up; the three queues and their DLQs
+      # exist before any service tries to poll them.
+      - ./localstack/init/ready.d:/etc/localstack/init/ready.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:4566/_localstack/health >/dev/null || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 40
+      start_period: 15s
+    networks:
+      - ecom-net
+
+  mailpit:
+    image: axllent/mailpit:v1.21
+    container_name: ecom-mailpit
+    restart: unless-stopped
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: "1"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "1"
+      MP_MAX_MESSAGES: "500"
+    ports:
+      - "${MAILPIT_SMTP_PORT:-1025}:1025"
+      - "${MAILPIT_UI_PORT:-8025}:8025"
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      - ecom-net
+
+networks:
+  # Fixed name, not the project-prefixed default: `ecom-net` is the name the
+  # architecture document and every future service container expect.
+  ecom-net:
+    name: ecom-net
+
+volumes:
+  pgdata:
+  redis-data:
+  mongo-data:
+  kafka-data:
+  localstack-data:

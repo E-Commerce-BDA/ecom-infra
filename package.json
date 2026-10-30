@@ -1,0 +1,17 @@
+{
+  "name": "ecom-infra",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Local harness, Kafka/SQS provisioning and Terraform for the e-commerce platform",
+  "license": "UNLICENSED",
+  "type": "module",
+  "packageManager": "pnpm@11.25.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "up": "docker compose up -d",
+    "down": "docker compose down",
+    "verify": "node scripts/verify-stack.mjs"
+  }
+}

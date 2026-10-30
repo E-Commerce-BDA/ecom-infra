@@ -1,0 +1,16 @@
+# Local only; .env.example is the committed template.
+.env
+
+# Scratch space for the one-time data migration (pg_dump output, logs).
+.tmp/
+*.log
+
+# Terraform working state. The lock file IS committed; these are machine-local.
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+aws/*.auto.tfvars
+aws/prod.tfvars
+
+node_modules/
