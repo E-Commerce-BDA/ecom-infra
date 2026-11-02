@@ -98,12 +98,18 @@ async function ensureAdmin() {
 // 2. Catalog — archive fixtures, then categories / brands / products
 // ---------------------------------------------------------------------------
 
+// Products owned by the catalog-svc e2e suite, which runs against this same dev
+// database (`products.e2e-spec.ts` asserts fixture-tee/fixture-mug are active and
+// discontinued-lamp is not). Archiving them turns that suite red, so the seed
+// must never touch these two rows.
+const E2E_OWNED_SKUS = new Set(["TEE-MAIN", "MUG-001"]);
+
 async function archiveFixtures() {
   step("catalog: archive pre-seed fixture products");
   const seedSkus = new Set(PRODUCTS.map((p) => p.sku));
   const list = await api("GET", ENV.catalog, "/api/v1/catalog/products?limit=100");
   for (const p of list.data ?? []) {
-    if (p.status === "archived" || seedSkus.has(p.sku)) continue;
+    if (p.status === "archived" || seedSkus.has(p.sku) || E2E_OWNED_SKUS.has(p.sku)) continue;
     await api("PATCH", ENV.catalog, `/api/v1/catalog/products/${p.id}`, {
       body: { status: "archived" },
     });
