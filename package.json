@@ -14,7 +14,8 @@
     "down": "docker compose down",
     "verify": "node scripts/verify-stack.mjs",
     "topics:provision": "node scripts/provision-topics.mjs",
-    "topics:smoke": "node scripts/smoke-topics.mjs"
+    "topics:smoke": "node scripts/smoke-topics.mjs",
+    "seed:demo": "node scripts/demo-seed/seed-demo.mjs"
   },
   "dependencies": {
     "@ecom/contracts": "file:../ecom-contracts/ecom-contracts-1.8.0.tgz"
