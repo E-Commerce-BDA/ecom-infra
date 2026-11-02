@@ -140,10 +140,42 @@ export const PRODUCTS = [
       "A relaxed button-up in garment-washed European linen that gets softer every wear. Pre-shrunk, side-seam pockets, corozo buttons. Cut roomy through the chest so it works layered or alone.",
     image: IMG.products["linen-shirt"],
     tags: ["linen", "summer", "shirting"],
+    options: [
+      {
+        name: "Color",
+        displayType: "swatch",
+        showOnCard: true,
+        cardPlacement: "info",
+        values: [
+          { value: "Ocean Blue", swatchHex: "#2b6cb0" },
+          { value: "Natural", swatchHex: "#e2d9cc" },
+          { value: "Navy", swatchHex: "#1a365d" },
+        ],
+      },
+      {
+        name: "Size",
+        displayType: "pill",
+        showOnCard: true,
+        cardPlacement: "media-hover-top",
+        values: [
+          { value: "S" },
+          { value: "M" },
+          { value: "L" },
+          { value: "XL" },
+        ],
+      },
+    ],
+    gallery: [
+      { url: IMG.products["linen-shirt"], alt: "Everyday Linen Shirt - Front" },
+      { url: "/media/seed/products/merino-crew.png", alt: "Everyday Linen Shirt - Texture" },
+      { url: "/media/seed/products/denim-jacket.png", alt: "Everyday Linen Shirt - Flat Lay" },
+    ],
     variants: [
-      { sku: "FW-AP-0001-S", price: 680, stock: 10, label: "S" },
-      { sku: "FW-AP-0001-M", price: 680, stock: 18, label: "M" },
-      { sku: "FW-AP-0001-L", price: 680, stock: 14, label: "L" },
+      { sku: "FW-AP-0001-BLU-S", price: 680, stock: 10, label: "Ocean Blue / S", optionValues: { Color: "Ocean Blue", Size: "S" } },
+      { sku: "FW-AP-0001-BLU-M", price: 680, stock: 18, label: "Ocean Blue / M", optionValues: { Color: "Ocean Blue", Size: "M" } },
+      { sku: "FW-AP-0001-BLU-L", price: 680, stock: 0, label: "Ocean Blue / L", optionValues: { Color: "Ocean Blue", Size: "L" } },
+      { sku: "FW-AP-0001-NAT-M", price: 680, stock: 14, label: "Natural / M", optionValues: { Color: "Natural", Size: "M" } },
+      { sku: "FW-AP-0001-NAV-L", price: 720, compareAtPrice: 850, stock: 6, label: "Navy / L", optionValues: { Color: "Navy", Size: "L" } },
     ],
   },
   {
@@ -259,11 +291,41 @@ export const PRODUCTS = [
     description:
       "A cushioned daily trainer for straight-mileage running: compression-moulded EVA midsole, 8 mm drop, engineered mesh upper with a recycled content yarn. Reflective heel counter.",
     image: IMG.products.runner,
-    tags: ["running", "sneakers"],
+    tags: ["shoes", "running"],
+    options: [
+      {
+        name: "Color",
+        displayType: "swatch",
+        showOnCard: true,
+        cardPlacement: "info",
+        values: [
+          { value: "Chalk White", swatchHex: "#f8fafc" },
+          { value: "Shadow Grey", swatchHex: "#475569" },
+        ],
+      },
+      {
+        name: "Size",
+        displayType: "pill",
+        showOnCard: true,
+        cardPlacement: "media-hover-top",
+        values: [
+          { value: "US 8" },
+          { value: "US 9" },
+          { value: "US 10" },
+          { value: "US 11" },
+        ],
+      },
+    ],
+    gallery: [
+      { url: IMG.products.runner, alt: "Daily Road Runner - Profile" },
+      { url: "/media/seed/products/loafer.png", alt: "Daily Road Runner - Outsole" },
+      { url: "/media/seed/products/chelsea-boot.png", alt: "Daily Road Runner - Top View" },
+    ],
     variants: [
-      { sku: "FW-SH-0001-8", price: 1150, stock: 8, label: "US 8" },
-      { sku: "FW-SH-0001-9", price: 1150, stock: 12, label: "US 9" },
-      { sku: "FW-SH-0001-10", price: 1150, stock: 10, label: "US 10" },
+      { sku: "FW-SH-0001-WHT-9", price: 1150, stock: 12, label: "Chalk White / US 9", optionValues: { Color: "Chalk White", Size: "US 9" } },
+      { sku: "FW-SH-0001-WHT-10", price: 1150, stock: 0, label: "Chalk White / US 10", optionValues: { Color: "Chalk White", Size: "US 10" } },
+      { sku: "FW-SH-0001-GRY-10", price: 1150, stock: 8, label: "Shadow Grey / US 10", optionValues: { Color: "Shadow Grey", Size: "US 10" } },
+      { sku: "FW-SH-0001-GRY-11", price: 1150, stock: 10, label: "Shadow Grey / US 11", optionValues: { Color: "Shadow Grey", Size: "US 11" } },
     ],
   },
   {

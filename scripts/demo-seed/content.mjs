@@ -366,6 +366,65 @@ export function buildSections(ctx) {
 
   return [
     {
+      key: "pdp-everyday-linen-shirt-reviews",
+      pageKey: "pdp-everyday-linen-shirt",
+      type: "testimonials",
+      title: "Customer Reviews",
+      content: {
+        title: "Customer Reviews",
+        items: [
+          {
+            id: "rev-1",
+            author: "Julian M.",
+            role: "Verified Buyer",
+            rating: 5,
+            text: "The breathability and drape of this linen are unmatched. Perfect for summer days and casual evenings.",
+          },
+          {
+            id: "rev-2",
+            author: "Claire D.",
+            role: "Verified Buyer",
+            rating: 5,
+            text: "Incredible quality. Fits true to size with a nice relaxed feel. Wears and washes beautifully.",
+          },
+          {
+            id: "rev-3",
+            author: "David S.",
+            role: "Verified Buyer",
+            rating: 4,
+            text: "Great linen shirt. The color is rich and buttons feel substantial.",
+          },
+        ],
+      },
+      settings: {},
+    },
+    {
+      key: "pdp-merino-crew-sweater-reviews",
+      pageKey: "pdp-merino-crew-sweater",
+      type: "testimonials",
+      title: "Customer Reviews",
+      content: {
+        title: "Customer Reviews",
+        items: [
+          {
+            id: "rev-4",
+            author: "Sophie L.",
+            role: "Verified Buyer",
+            rating: 5,
+            text: "Super soft merino that doesn't itch at all. Warm without being bulky.",
+          },
+          {
+            id: "rev-5",
+            author: "Aaron K.",
+            role: "Verified Buyer",
+            rating: 5,
+            text: "Worn on several business trips. Packs well, looks sharp and breathes effortlessly.",
+          },
+        ],
+      },
+      settings: {},
+    },
+    {
       key: "hero-homepage",
       pageKey: "homepage",
       type: "hero",

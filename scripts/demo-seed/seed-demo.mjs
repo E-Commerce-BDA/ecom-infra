@@ -220,17 +220,85 @@ async function upsertProducts(categoryIds, brandIds) {
       log(`product ${p.slug}: created`);
     }
     productIds[p.key] = id;
-    if (!needMedia) {
-      counters.skipped += 1;
-      continue;
+    // Options
+    const optionMap = {};
+    if (p.options && p.options.length > 0) {
+      for (const opt of p.options) {
+        try {
+          const res = await api("POST", ENV.catalog, `/api/v1/catalog/products/${id}/options`, {
+            body: {
+              name: opt.name,
+              displayType: opt.displayType,
+              showOnCard: opt.showOnCard,
+              cardPlacement: opt.cardPlacement,
+              values: opt.values,
+            },
+          });
+          const createdOpt = res.option;
+          const valMap = {};
+          for (const v of createdOpt.values) {
+            valMap[v.value] = v.id;
+          }
+          optionMap[opt.name] = { id: createdOpt.id, values: valMap };
+        } catch {
+          try {
+            const cur = await api("GET", ENV.catalog, `/api/v1/catalog/products/${id}`);
+            for (const existingOpt of cur.product.options ?? []) {
+              const valMap = {};
+              for (const v of existingOpt.values ?? []) {
+                valMap[v.value] = v.id;
+              }
+              optionMap[existingOpt.name] = { id: existingOpt.id, values: valMap };
+            }
+          } catch {}
+        }
+      }
     }
-    await api("POST", ENV.catalog, `/api/v1/catalog/products/${id}/images`, {
-      body: { url: p.image, alt: p.name, isPrimary: true, sortOrder: 0 },
-    });
+
+    // Gallery images
+    if (p.gallery && p.gallery.length > 0) {
+      for (const [idx, img] of p.gallery.entries()) {
+        await api("POST", ENV.catalog, `/api/v1/catalog/products/${id}/images`, {
+          body: { url: img.url, alt: img.alt, isPrimary: idx === 0, sortOrder: idx },
+        }).catch(() => {});
+      }
+    } else if (needMedia) {
+      await api("POST", ENV.catalog, `/api/v1/catalog/products/${id}/images`, {
+        body: { url: p.image, alt: p.name, isPrimary: true, sortOrder: 0 },
+      }).catch(() => {});
+    }
+
+    // Variants
     for (const [i, v] of (p.variants ?? []).entries()) {
-      await api("POST", ENV.catalog, `/api/v1/catalog/products/${id}/variants`, {
-        body: { sku: v.sku, price: v.price, stock: v.stock, imageUrl: p.image },
-      }).catch((err) => log(`  variant ${v.sku}: ${err.message}`));
+      const variantOptions = [];
+      if (v.optionValues) {
+        for (const [optName, valName] of Object.entries(v.optionValues)) {
+          if (optionMap[optName] && optionMap[optName].values[valName]) {
+            variantOptions.push({
+              optionId: optionMap[optName].id,
+              optionValueId: optionMap[optName].values[valName],
+            });
+          }
+        }
+      }
+      try {
+        const varRes = await api("POST", ENV.catalog, `/api/v1/catalog/products/${id}/variants`, {
+          body: {
+            sku: v.sku,
+            price: v.price,
+            stock: v.stock,
+            imageUrl: v.imageUrl || p.image,
+            options: variantOptions.length > 0 ? variantOptions : undefined,
+          },
+        });
+        if (variantOptions.length > 0 && varRes?.variant?.id) {
+          await api("PATCH", ENV.catalog, `/api/v1/catalog/variants/${varRes.variant.id}/options`, {
+            body: { options: variantOptions },
+          }).catch(() => {});
+        }
+      } catch (err) {
+        log(`  variant ${v.sku}: ${err.message}`);
+      }
       void i;
     }
   }
@@ -257,7 +325,7 @@ async function upsertSections(ctx) {
   const { sections } = await api(
     "GET",
     ENV.cms,
-    "/api/v1/cms/admin/sections?pageKey=homepage",
+    "/api/v1/cms/admin/sections",
   );
   const byKey = new Map((sections ?? []).map((s) => [s.key, s]));
   for (const s of wanted) {
@@ -276,7 +344,7 @@ async function upsertSections(ctx) {
     }
   }
   await api("PATCH", ENV.cms, "/api/v1/cms/admin/sections/reorder", {
-    body: { pageKey: "homepage", orderedKeys: wanted.map((s) => s.key) },
+    body: { pageKey: "homepage", orderedKeys: wanted.filter((s) => s.pageKey === "homepage").map((s) => s.key) },
     expectJson: false,
   });
   log(`order pinned: ${wanted.map((s) => s.key).join(" → ")}`);
