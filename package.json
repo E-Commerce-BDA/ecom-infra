@@ -15,6 +15,7 @@
     "verify": "node scripts/verify-stack.mjs",
     "topics:provision": "node scripts/provision-topics.mjs",
     "topics:smoke": "node scripts/smoke-topics.mjs",
+    "search:reindex": "node scripts/search/reindex.mjs",
     "seed:demo": "node scripts/demo-seed/seed-demo.mjs"
   },
   "dependencies": {
