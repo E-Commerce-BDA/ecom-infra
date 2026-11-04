@@ -166,14 +166,14 @@ async function upsertBrands() {
     );
     if (existing?.brand) {
       await api("PATCH", ENV.catalog, `/api/v1/catalog/brands/${existing.brand.id}`, {
-        body: { name: b.name, description: b.description, isActive: true, sortOrder: b.sortOrder },
+        body: { name: b.name, description: b.description, logoUrl: b.logoUrl ?? null, isActive: true, sortOrder: b.sortOrder },
       });
       ids[b.key] = existing.brand.id;
       counters.patched += 1;
       log(`brand ${b.slug}: patched`);
     } else {
       const res = await api("POST", ENV.catalog, "/api/v1/catalog/brands", {
-        body: { name: b.name, slug: b.slug, description: b.description, isActive: true, sortOrder: b.sortOrder },
+        body: { name: b.name, slug: b.slug, description: b.description, logoUrl: b.logoUrl ?? null, isActive: true, sortOrder: b.sortOrder },
       });
       ids[b.key] = res.brand.id;
       counters.created += 1;
@@ -204,13 +204,9 @@ async function upsertProducts(categoryIds, brandIds) {
       api("GET", ENV.catalog, `/api/v1/catalog/products/${p.slug}`),
     );
     let id;
-    let needMedia = true;
     if (existing?.product) {
       id = existing.product.id;
       await api("PATCH", ENV.catalog, `/api/v1/catalog/products/${id}`, { body });
-      needMedia =
-        (existing.product.images?.length ?? 0) === 0 &&
-        (existing.product.variants?.length ?? 0) === 0;
       counters.patched += 1;
       log(`product ${p.slug}: patched`);
     } else {
@@ -220,86 +216,126 @@ async function upsertProducts(categoryIds, brandIds) {
       log(`product ${p.slug}: created`);
     }
     productIds[p.key] = id;
-    // Options
+    // Read the product once, by-id (`/products/id/:id`; `/products/:slug` is the
+    // by-slug route and would miss a uuid). Options, images and variants below
+    // all reconcile against this snapshot, so a re-seed converges to the manifest
+    // instead of stacking duplicate rows or leaving stale ones behind.
+    const currentProduct = await orNull(
+      api("GET", ENV.catalog, `/api/v1/catalog/products/id/${id}`),
+    );
+    const currentOptions = currentProduct?.product?.options ?? [];
+    const currentImages = currentProduct?.product?.images ?? [];
+    const currentVariants = currentProduct?.product?.variants ?? [];
+
+    // Options — idempotent reconcile by name. Reuse an existing option (and its
+    // value ids) when the name already matches; POST only what is genuinely new,
+    // so a re-run never duplicates a "Color" row. `optionMap` feeds variant
+    // linkage below and is stable across runs because value ids are reused.
     const optionMap = {};
-    if (p.options && p.options.length > 0) {
-      for (const opt of p.options) {
-        try {
-          const res = await api("POST", ENV.catalog, `/api/v1/catalog/products/${id}/options`, {
-            body: {
-              name: opt.name,
-              displayType: opt.displayType,
-              showOnCard: opt.showOnCard,
-              cardPlacement: opt.cardPlacement,
-              values: opt.values,
-            },
-          });
-          const createdOpt = res.option;
-          const valMap = {};
-          for (const v of createdOpt.values) {
-            valMap[v.value] = v.id;
-          }
-          optionMap[opt.name] = { id: createdOpt.id, values: valMap };
-        } catch {
-          try {
-            const cur = await api("GET", ENV.catalog, `/api/v1/catalog/products/${id}`);
-            for (const existingOpt of cur.product.options ?? []) {
-              const valMap = {};
-              for (const v of existingOpt.values ?? []) {
-                valMap[v.value] = v.id;
-              }
-              optionMap[existingOpt.name] = { id: existingOpt.id, values: valMap };
-            }
-          } catch {}
-        }
+    const indexOption = (opt) => {
+      const valMap = {};
+      for (const v of opt.values ?? []) valMap[v.value] = v.id;
+      optionMap[opt.name] = { id: opt.id, values: valMap };
+    };
+    for (const opt of p.options ?? []) {
+      const existingOpt = currentOptions.find((o) => o.name === opt.name);
+      if (existingOpt) {
+        indexOption(existingOpt);
+        continue;
+      }
+      try {
+        const res = await api("POST", ENV.catalog, `/api/v1/catalog/products/${id}/options`, {
+          body: {
+            name: opt.name,
+            displayType: opt.displayType,
+            showOnCard: opt.showOnCard,
+            cardPlacement: opt.cardPlacement,
+            values: opt.values,
+          },
+        });
+        if (res?.option) indexOption(res.option);
+      } catch (err) {
+        log(`  option ${opt.name}: ${err.message}`);
       }
     }
 
-    // Gallery images
-    if (p.gallery && p.gallery.length > 0) {
-      for (const [idx, img] of p.gallery.entries()) {
-        await api("POST", ENV.catalog, `/api/v1/catalog/products/${id}/images`, {
-          body: { url: img.url, alt: img.alt, isPrimary: idx === 0, sortOrder: idx },
-        }).catch(() => {});
+    // Gallery images — POST only the manifest urls the product does not already
+    // carry, and prune any same-url duplicate rows, so a re-seed never adds a
+    // frame twice and an already-seeded product still gains manifest additions.
+    const desiredImages =
+      p.gallery && p.gallery.length > 0 ? p.gallery : [{ url: p.image, alt: p.name }];
+    const haveImages = new Set(currentImages.map((img) => img.url));
+    // Keep one row per url (lowest sortOrder wins) and delete the extras.
+    const keepByUrl = new Map();
+    for (const img of currentImages) {
+      const kept = keepByUrl.get(img.url);
+      if (!kept) {
+        keepByUrl.set(img.url, img);
+        continue;
       }
-    } else if (needMedia) {
+      const winner = (kept.sortOrder ?? 0) <= (img.sortOrder ?? 0) ? kept : img;
+      const loser = winner === kept ? img : kept;
+      keepByUrl.set(img.url, winner);
+      await api("DELETE", ENV.catalog, `/api/v1/catalog/images/${loser.id}`).catch(() => {});
+    }
+    for (const [idx, img] of desiredImages.entries()) {
+      if (haveImages.has(img.url)) continue;
       await api("POST", ENV.catalog, `/api/v1/catalog/products/${id}/images`, {
-        body: { url: p.image, alt: p.name, isPrimary: true, sortOrder: 0 },
+        body: { url: img.url, alt: img.alt, isPrimary: idx === 0, sortOrder: idx },
       }).catch(() => {});
+      haveImages.add(img.url);
     }
 
-    // Variants
-    for (const [i, v] of (p.variants ?? []).entries()) {
+    // Variants — reconcile against the manifest so switching a product from
+    // label-only rows to option-linked rows leaves no orphans: delete any current
+    // variant whose sku is no longer wanted, then create or re-link the rest and
+    // keep existing rows' price/stock/image in step with the manifest.
+    const variantBySku = new Map(currentVariants.map((v) => [v.sku, v]));
+    const desiredSkus = new Set((p.variants ?? []).map((v) => v.sku));
+    for (const cv of currentVariants) {
+      if (!desiredSkus.has(cv.sku)) {
+        await api("DELETE", ENV.catalog, `/api/v1/catalog/variants/${cv.id}`).catch(() => {});
+      }
+    }
+    for (const v of p.variants ?? []) {
       const variantOptions = [];
       if (v.optionValues) {
         for (const [optName, valName] of Object.entries(v.optionValues)) {
-          if (optionMap[optName] && optionMap[optName].values[valName]) {
-            variantOptions.push({
-              optionId: optionMap[optName].id,
-              optionValueId: optionMap[optName].values[valName],
-            });
+          const entry = optionMap[optName];
+          if (entry && entry.values[valName]) {
+            variantOptions.push({ optionId: entry.id, optionValueId: entry.values[valName] });
           }
         }
       }
+      const existingVariant = variantBySku.get(v.sku);
+      let variantId = existingVariant?.id;
       try {
-        const varRes = await api("POST", ENV.catalog, `/api/v1/catalog/products/${id}/variants`, {
-          body: {
-            sku: v.sku,
-            price: v.price,
-            stock: v.stock,
-            imageUrl: v.imageUrl || p.image,
-            options: variantOptions.length > 0 ? variantOptions : undefined,
-          },
-        });
-        if (variantOptions.length > 0 && varRes?.variant?.id) {
-          await api("PATCH", ENV.catalog, `/api/v1/catalog/variants/${varRes.variant.id}/options`, {
-            body: { options: variantOptions },
+        if (!variantId) {
+          const varRes = await api("POST", ENV.catalog, `/api/v1/catalog/products/${id}/variants`, {
+            body: {
+              sku: v.sku,
+              price: v.price,
+              stock: v.stock,
+              imageUrl: v.imageUrl || p.image,
+              options: variantOptions.length > 0 ? variantOptions : undefined,
+            },
+          });
+          variantId = varRes?.variant?.id;
+        } else {
+          await api("PATCH", ENV.catalog, `/api/v1/catalog/variants/${variantId}`, {
+            body: { price: v.price, stock: v.stock, imageUrl: v.imageUrl || p.image },
           }).catch(() => {});
         }
       } catch (err) {
         log(`  variant ${v.sku}: ${err.message}`);
       }
-      void i;
+      // (Re)assert the option linkage so an existing row that pre-dated the
+      // optionValues (a former label-only variant) becomes selectable.
+      if (variantId && variantOptions.length > 0) {
+        await api("PATCH", ENV.catalog, `/api/v1/catalog/variants/${variantId}/options`, {
+          body: { options: variantOptions },
+        }).catch(() => {});
+      }
     }
   }
   return productIds;
@@ -470,6 +506,10 @@ async function main() {
 
   const ctx = {
     categoryIds: CATEGORIES.map((c) => categoryIds[c.key]).filter(Boolean),
+    // `label` pins the name beside the mark. The logo is deliberately *not*
+    // copied in here: it belongs to the brand row, so an admin changing a logo
+    // in the catalog changes the strip instead of being overpainted by the
+    // section's stored copy.
     brandItems: BRANDS.map((b) => ({
       brandId: brandIds[b.key],
       label: b.name,
