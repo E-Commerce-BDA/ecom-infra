@@ -19,6 +19,6 @@
     "seed:demo": "node scripts/demo-seed/seed-demo.mjs"
   },
   "dependencies": {
-    "@ecom/contracts": "file:../ecom-contracts/ecom-contracts-1.8.0.tgz"
+    "@ecom/contracts": "file:..\\ecom-contracts\\ecom-contracts-1.8.0.tgz"
   }
 }
