@@ -356,7 +356,7 @@ async function putNavigation() {
 }
 
 async function upsertSections(ctx) {
-  step("cms: homepage sections (7, in shipped order)");
+  step("cms: homepage sections (7) + PDP sections (2), in shipped order");
   const wanted = buildSections(ctx);
   const { sections } = await api(
     "GET",
@@ -364,20 +364,29 @@ async function upsertSections(ctx) {
     "/api/v1/cms/admin/sections",
   );
   const byKey = new Map((sections ?? []).map((s) => [s.key, s]));
+  const failures = [];
   for (const s of wanted) {
-    if (byKey.has(s.key)) {
-      // key is the route param; pageKey/type/optional fields all re-validated
-      // server-side against the same sectionSchema the create used.
-      const { key, ...patch } = s;
-      void key;
-      await api("PATCH", ENV.cms, `/api/v1/cms/admin/sections/${s.key}`, { body: patch });
-      counters.patched += 1;
-      log(`section ${s.key}: patched`);
-    } else {
-      await api("POST", ENV.cms, "/api/v1/cms/admin/sections", { body: s });
-      counters.created += 1;
-      log(`section ${s.key}: created`);
+    try {
+      if (byKey.has(s.key)) {
+        // key is the route param; pageKey/type/optional fields all re-validated
+        // server-side against the same sectionSchema the create used.
+        const { key, ...patch } = s;
+        void key;
+        await api("PATCH", ENV.cms, `/api/v1/cms/admin/sections/${s.key}`, { body: patch });
+        counters.patched += 1;
+        log(`section ${s.key}: patched`);
+      } else {
+        await api("POST", ENV.cms, "/api/v1/cms/admin/sections", { body: s });
+        counters.created += 1;
+        log(`section ${s.key}: created`);
+      }
+    } catch (error) {
+      failures.push(`${s.key}: ${error?.message ?? String(error)}`);
+      log(`section ${s.key}: FAILED — ${error?.message ?? String(error)}`);
     }
+  }
+  if (failures.length > 0) {
+    throw new Error(`upsertSections: ${failures.length}/${wanted.length} sections failed -> ${failures.join(" | ")}`);
   }
   await api("PATCH", ENV.cms, "/api/v1/cms/admin/sections/reorder", {
     body: { pageKey: "homepage", orderedKeys: wanted.filter((s) => s.pageKey === "homepage").map((s) => s.key) },
@@ -528,7 +537,7 @@ async function main() {
     `\nDone in ${((Date.now() - started) / 1000).toFixed(1)}s — ` +
       `${counters.created} created, ${counters.patched} patched, ${counters.skipped} skipped.\n` +
       `Store: ${SITE.name} · ${CATEGORIES.length} categories · ${BRANDS.length} brands · ` +
-      `${PRODUCTS.length} products · 7 sections · ${BLOGS.length} posts · ${PAGES.length} pages.`,
+      `${PRODUCTS.length} products · 9 sections (7 homepage + 2 PDP) · ${BLOGS.length} posts · ${PAGES.length} pages.`,
   );
 }
 
