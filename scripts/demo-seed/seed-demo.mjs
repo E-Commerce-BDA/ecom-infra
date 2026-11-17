@@ -26,7 +26,7 @@
 
 import { req, orNull, ApiError } from "./http.mjs";
 import { CATEGORIES, BRANDS, PRODUCTS, NAV, FOOTER, SITE } from "./manifest.mjs";
-import { BLOG_CATEGORY, BLOGS, PAGES, buildSections } from "./content.mjs";
+import { BLOG_CATEGORY, BLOGS, PAGES, PDP_REVIEWS_BY_PRODUCT_KEY, buildSections } from "./content.mjs";
 
 const ENV = {
   auth: process.env.AUTH_SVC_URL ?? "http://localhost:4010",
@@ -355,8 +355,51 @@ async function putNavigation() {
   log("footer: written");
 }
 
+async function materializePdpSections(ctx) {
+  step("cms: materialize PDP sections from pdp-default");
+  const reset = process.env.SEED_RESET_PDP === "1";
+  const failures = [];
+  for (const product of PRODUCTS) {
+    const id = ctx.productIds?.[product.key];
+    if (!id) {
+      failures.push(`${product.key}: no product id`);
+      continue;
+    }
+    const pageKey = `pdp-${String(id).toLowerCase()}`;
+    try {
+      const { sections } = await api("GET", ENV.cms, `/api/v1/cms/admin/sections?pageKey=${pageKey}`);
+      if ((sections ?? []).length > 0 && !reset) {
+        counters.skipped += 1;
+        log(`pdp ${pageKey}: skipped (already materialized; set SEED_RESET_PDP=1 to re-clone)`);
+        continue;
+      }
+      const res = await api("POST", ENV.cms, "/api/v1/cms/admin/sections/clone", {
+        body: { fromPageKey: "pdp-default", toPageKey: pageKey, ...(reset ? { replace: true } : {}) },
+      });
+      counters.created += (res.sections ?? []).length;
+      log(`pdp ${pageKey}: cloned ${(res.sections ?? []).length} sections`);
+
+      const reviews = PDP_REVIEWS_BY_PRODUCT_KEY[product.key];
+      if (reviews?.length > 0) {
+        const key = `${pageKey}-reviews`;
+        await api("PATCH", ENV.cms, `/api/v1/cms/admin/sections/${key}`, {
+          body: { content: { title: "Reviews", items: reviews } },
+        });
+        counters.patched += 1;
+        log(`pdp ${key}: demo reviews written`);
+      }
+    } catch (error) {
+      failures.push(`${pageKey}: ${error?.message ?? String(error)}`);
+      log(`pdp ${pageKey}: FAILED — ${error?.message ?? String(error)}`);
+    }
+  }
+  if (failures.length > 0) {
+    throw new Error(`materializePdpSections: ${failures.length} product page(s) failed -> ${failures.join(" | ")}`);
+  }
+}
+
 async function upsertSections(ctx) {
-  step("cms: homepage sections (7) + PDP sections (2), in shipped order");
+  step("cms: homepage sections (7) + PDP template (7), in shipped order");
   const wanted = buildSections(ctx);
   const { sections } = await api(
     "GET",
@@ -388,11 +431,14 @@ async function upsertSections(ctx) {
   if (failures.length > 0) {
     throw new Error(`upsertSections: ${failures.length}/${wanted.length} sections failed -> ${failures.join(" | ")}`);
   }
-  await api("PATCH", ENV.cms, "/api/v1/cms/admin/sections/reorder", {
-    body: { pageKey: "homepage", orderedKeys: wanted.filter((s) => s.pageKey === "homepage").map((s) => s.key) },
-    expectJson: false,
-  });
-  log(`order pinned: ${wanted.map((s) => s.key).join(" → ")}`);
+  for (const pageKey of [...new Set(wanted.map((s) => s.pageKey))]) {
+    await api("PATCH", ENV.cms, "/api/v1/cms/admin/sections/reorder", {
+      body: { pageKey, orderedKeys: wanted.filter((s) => s.pageKey === pageKey).map((s) => s.key) },
+      expectJson: false,
+    });
+    log(`order pinned: ${pageKey}`);
+  }
+  await materializePdpSections(ctx);
 }
 
 async function upsertBlogs() {
@@ -537,7 +583,7 @@ async function main() {
     `\nDone in ${((Date.now() - started) / 1000).toFixed(1)}s — ` +
       `${counters.created} created, ${counters.patched} patched, ${counters.skipped} skipped.\n` +
       `Store: ${SITE.name} · ${CATEGORIES.length} categories · ${BRANDS.length} brands · ` +
-      `${PRODUCTS.length} products · 9 sections (7 homepage + 2 PDP) · ${BLOGS.length} posts · ${PAGES.length} pages.`,
+      `${PRODUCTS.length} products · 7 homepage sections + pdp-default template + per-product PDP sections · ${BLOGS.length} posts · ${PAGES.length} pages.`,
   );
 }
 

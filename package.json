@@ -16,7 +16,8 @@
     "topics:provision": "node scripts/provision-topics.mjs",
     "topics:smoke": "node scripts/smoke-topics.mjs",
     "search:reindex": "node scripts/search/reindex.mjs",
-    "seed:demo": "node scripts/demo-seed/seed-demo.mjs"
+    "seed:demo": "node scripts/demo-seed/seed-demo.mjs",
+    "pdp:backfill": "node scripts/backfill-pdp-sections.mjs"
   },
   "dependencies": {
     "@ecom/contracts": "file:..\\ecom-contracts\\ecom-contracts-1.8.0.tgz"

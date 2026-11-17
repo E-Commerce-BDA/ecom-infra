@@ -331,10 +331,166 @@ export const PAGES = [
   },
 ];
 
+export const PDP_TRUST_ITEMS = [
+  {
+    id: "trust-shipping",
+    icon: "truck",
+    title: "Free shipping",
+    description: "Complimentary standard delivery on orders over $50",
+  },
+  {
+    id: "trust-returns",
+    icon: "returns",
+    title: "Effortless returns",
+    description: "30-day complimentary returns and exchanges",
+  },
+  {
+    id: "trust-secure",
+    icon: "shield-check",
+    title: "Secure checkout",
+    description: "256-bit SSL encrypted member transactions",
+  },
+];
+
+export const PDP_FAQ_ITEMS = [
+  {
+    question: "How fast is delivery?",
+    answer:
+      "Orders ship within 48 hours. Standard delivery is free above $50 and typically arrives in 3–5 business days; express options appear at checkout.",
+  },
+  {
+    question: "Can I return this?",
+    answer:
+      "Yes — 30 days, no questions asked, as long as it has not been worn or washed. Start a return from your account and we provide a prepaid label.",
+  },
+  {
+    question: "How does sizing run?",
+    answer:
+      "True to size with a relaxed cut on most garments. If you are between sizes, size down for a closer fit or up for layering room.",
+  },
+  {
+    question: "How should I care for it?",
+    answer:
+      "Machine wash cold on gentle, tumble dry low. The care label on the garment is the source of truth for anything more specific.",
+  },
+];
+
 /**
- * Homepage sections, in the shipped order (plan §6): hero → newest → showcase
- * → brand marquee → testimonials → manual most-popular → blog teaser.
- * `productKeys`/`postKeys` are resolved to ids by the seed script.
+ * PDP template. `pdp-default` is a materialized blueprint: the seed clones
+ * it into `pdp-<product.id>` through the admin clone endpoint. It is never
+ * read by the storefront at runtime. Description/details intentionally
+ * carry no CMS override, so the catalog is the default source.
+ */
+export function buildPdpTemplateSections() {
+  return [
+    {
+      key: "pdp-default-description",
+      pageKey: "pdp-default",
+      type: "pdp_description",
+      title: "PDP description",
+      content: { title: "Description" },
+      settings: {},
+    },
+    {
+      key: "pdp-default-details",
+      pageKey: "pdp-default",
+      type: "pdp_details",
+      title: "PDP details",
+      content: { title: "Details" },
+      settings: {},
+    },
+    {
+      key: "pdp-default-trust",
+      pageKey: "pdp-default",
+      type: "pdp_trust",
+      title: "PDP trust",
+      content: { title: `The ${SITE.name} promise`, items: PDP_TRUST_ITEMS },
+      settings: {},
+    },
+    {
+      key: "pdp-default-reviews",
+      pageKey: "pdp-default",
+      type: "pdp_reviews",
+      title: "PDP reviews",
+      content: { title: "Reviews", items: [] },
+      settings: {},
+    },
+    {
+      key: "pdp-default-story",
+      pageKey: "pdp-default",
+      type: "pdp_story",
+      title: "PDP story",
+      content: {
+        title: "Why we make it this way",
+        body: "<p>We wear every style before we sell it. If it does not survive a real winter, a real summer, and a real wash, it does not ship.</p><p><strong>Fewer, better things.</strong> That is the whole strategy.</p>",
+        image: IMG.aboutBanner,
+        imageAlt: "The studio bench where every style is wear-tested",
+      },
+      settings: { layout: "image-right" },
+    },
+    {
+      key: "pdp-default-faq",
+      pageKey: "pdp-default",
+      type: "pdp_faq",
+      title: "PDP FAQ",
+      content: { title: "Questions", items: PDP_FAQ_ITEMS },
+      settings: { layout: "accordion" },
+    },
+    {
+      key: "pdp-default-related",
+      pageKey: "pdp-default",
+      type: "pdp_related",
+      title: "PDP related",
+      content: { title: "You may also like", source: "category", layout: "grid" },
+      settings: { maxItems: 8 },
+    },
+  ];
+}
+
+/** Demo reviews by product manifest key. They are CMS-authored quotes; the
+ * `verified` flag stays absent unless a review is genuinely verified. */
+export const PDP_REVIEWS_BY_PRODUCT_KEY = {
+  "linen-shirt": [
+    {
+      id: "rev-1",
+      name: "Julian M.",
+      rating: 5,
+      quote: "The breathability and drape of this linen are unmatched. Perfect for summer days and casual evenings.",
+    },
+    {
+      id: "rev-2",
+      name: "Claire D.",
+      rating: 5,
+      quote: "Incredible quality. Fits true to size with a nice relaxed feel. Wears and washes beautifully.",
+    },
+    {
+      id: "rev-3",
+      name: "David S.",
+      rating: 4,
+      quote: "Great linen shirt. The color is rich and buttons feel substantial.",
+    },
+  ],
+  "merino-crew": [
+    {
+      id: "rev-4",
+      name: "Sophie L.",
+      rating: 5,
+      quote: "Super soft merino that doesn't itch at all. Warm without being bulky.",
+    },
+    {
+      id: "rev-5",
+      name: "Aaron K.",
+      rating: 5,
+      quote: "Worn on several business trips. Packs well, looks sharp and breathes effortlessly.",
+    },
+  ],
+};
+
+/**
+ * Homepage sections plus the PDP template, in the shipped order
+ * (plan §6): hero → newest → showcase → brand marquee → testimonials →
+ * manual most-popular → blog teaser → PDP template. `productKeys`/`postKeys`
+ * are resolved to ids by the seed script.
  */
 export function buildSections(ctx) {
   const popularKeys = ["merino-crew", "loafer", "chelsea-boot", "denim-jacket", "ceramic-vase", "serum-set"];
@@ -440,64 +596,6 @@ export function buildSections(ctx) {
       },
       settings: { maxItems: 3 },
     },
-    {
-      key: "pdp-everyday-linen-shirt-reviews",
-      pageKey: "pdp-everyday-linen-shirt",
-      type: "testimonial",
-      title: "Customer Reviews",
-      content: {
-        title: "Customer Reviews",
-        items: [
-          {
-            id: "rev-1",
-            name: "Julian M.",
-            verified: true,
-            rating: 5,
-            quote: "The breathability and drape of this linen are unmatched. Perfect for summer days and casual evenings.",
-          },
-          {
-            id: "rev-2",
-            name: "Claire D.",
-            verified: true,
-            rating: 5,
-            quote: "Incredible quality. Fits true to size with a nice relaxed feel. Wears and washes beautifully.",
-          },
-          {
-            id: "rev-3",
-            name: "David S.",
-            verified: true,
-            rating: 4,
-            quote: "Great linen shirt. The color is rich and buttons feel substantial.",
-          },
-        ],
-      },
-      settings: {},
-    },
-    {
-      key: "pdp-merino-crew-sweater-reviews",
-      pageKey: "pdp-merino-crew-sweater",
-      type: "testimonial",
-      title: "Customer Reviews",
-      content: {
-        title: "Customer Reviews",
-        items: [
-          {
-            id: "rev-4",
-            name: "Sophie L.",
-            verified: true,
-            rating: 5,
-            quote: "Super soft merino that doesn't itch at all. Warm without being bulky.",
-          },
-          {
-            id: "rev-5",
-            name: "Aaron K.",
-            verified: true,
-            rating: 5,
-            quote: "Worn on several business trips. Packs well, looks sharp and breathes effortlessly.",
-          },
-        ],
-      },
-      settings: {},
-    },
+    ...buildPdpTemplateSections(),
   ];
 }
